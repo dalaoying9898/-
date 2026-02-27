@@ -1,573 +1,442 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>专属菜品抽签</title>
-    <style>
-        /* 全局样式 - 适配手机端，小红书客户常用手机访问 */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: "Microsoft YaHei", sans-serif;
-        }
-        body {
-            background-color: #f8f9fa;
-            padding: 20px;
-            max-width: 500px;
-            margin: 0 auto;
-        }
-        h1 {
-            text-align: center;
-            color: #333;
-            margin: 20px 0;
-            font-size: 24px;
-        }
-        /* 抽签结果盒子 */
-        #resultBox {
-            background-color: white;
-            border-radius: 12px;
-            padding: 30px 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-            text-align: center;
-        }
-        #noResult {
-            color: #666;
-            font-size: 16px;
-            line-height: 1.5;
-        }
-        #resultContent {
-            display: none;
-            margin-top: 10px;
-        }
-        #resultContent.show {
-            display: block;
-        }
-        #dishNumber {
-            color: #ff6700;
-            font-size: 18px;
-            font-weight: bold;
-            margin-bottom: 10px;
-        }
-        #dishName {
-            font-size: 22px;
-            color: #333;
-            font-weight: bold;
-            margin-bottom: 15px;
-        }
-        #dishBlessing {
-            color: #666;
-            font-size: 16px;
-            line-height: 1.6;
-        }
-        /* 抽签动画 */
-        #resultBox.drawing #noResult {
-            animation: loading 1s infinite alternate;
-        }
-        @keyframes loading {
-            from { opacity: 0.5; }
-            to { opacity: 1; }
-        }
-        /* 按钮样式 */
-        .btn-group {
-            display: flex;
-            gap: 15px;
-            margin-top: 20px;
-        }
-        button {
-            flex: 1;
-            padding: 15px 0;
-            border: none;
-            border-radius: 8px;
-            font-size: 18px;
-            cursor: pointer;
-            transition: background-color 0.3s;
-        }
-        #drawBtn {
-            background-color: #ff6700;
-            color: white;
-        }
-        #drawBtn:disabled {
-            background-color: #ccc;
-            cursor: not-allowed;
-        }
-        #resetBtn {
-            background-color: #e0e0e0;
-            color: #333;
-        }
-        #resetBtn:hover {
-            background-color: #d0d0d0;
-        }
-    </style>
-</head>
-<body>
-    <h1>专属菜品抽签</h1>
-    
-    <!-- 抽签结果展示区 -->
-    <div id="resultBox">
-        <div id="noResult">✅ 专属链接有效，可无限次抽签！</div>
-        <div id="resultContent">
-            <div id="dishNumber"></div>
-            <div id="dishName"></div>
-            <div id="dishBlessing"></div>
-        </div>
-    </div>
-    
-    <!-- 按钮区 -->
-    <div class="btn-group">
-        <button id="drawBtn">开始抽签</button>
-        <button id="resetBtn">重新抽签</button>
-    </div>
+// ===================== 防转发·专属绑定版 =====================
+function getUrlParam(key) {
+  let p = new URLSearchParams(window.location.search);
+  return p.get(key);
+}
+const userTag = getUrlParam("user");
+const hasValidUser = userTag != null && userTag != "";
 
-    <script>
-        // ===================== 小红书自动发货专用逻辑 =====================
-        // 规则：链接带 ?user=xxx 就可以无限抽签，不带则禁用
-        function getUrlParam(key) {
-            let p = new URLSearchParams(window.location.search);
-            return p.get(key);
-        }
-        // 检测是否有专属用户参数
-        const hasUserKey = getUrlParam("user") != null;
+// 本地绑定设备，防止转发
+const STORAGE_KEY = "bound_user_" + userTag;
+const isBound = localStorage.getItem(STORAGE_KEY) === "true";
 
-        // 页面元素获取
-        const drawBtn = document.getElementById('drawBtn');
-        const resetBtn = document.getElementById('resetBtn');
-        const resultBox = document.getElementById('resultBox');
-        const noResult = document.getElementById('noResult');
-        const resultContent = document.getElementById('resultContent');
-        const dishNumber = document.getElementById('dishNumber');
-        const dishName = document.getElementById('dishName');
-        const dishBlessing = document.getElementById('dishBlessing');
+const drawBtn = document.getElementById('drawBtn');
+const resetBtn = document.getElementById('resetBtn');
+const resultBox = document.getElementById('resultBox');
+const noResult = document.getElementById('noResult');
+const resultContent = document.getElementById('resultContent');
+const dishNumber = document.getElementById('dishNumber');
+const dishName = document.getElementById('dishName');
+const dishBlessing = document.getElementById('dishBlessing');
 
-        // ===================== 365道完整菜品+祝福语数据 =====================
-        const dishData = [
-            { number: 1, name: "鱼香肉丝盖饭", blessing: "三餐有滋味，日子有光亮，平安顺遂每一天。" },
-            { number: 2, name: "宫保鸡丁盖饭", blessing: "生活有滋有味，好运步步相随。" },
-            { number: 3, name: "麻婆豆腐盖饭", blessing: "热气暖身心，万事皆顺心。" },
-            { number: 4, name: "番茄炒蛋盖饭", blessing: "简单最幸福，平安伴朝夕。" },
-            { number: 5, name: "土豆烧牛肉盖饭", blessing: "吃得饱饱，烦恼少少，开心常在。" },
-            { number: 6, name: "青椒肉丝盖饭", blessing: "日子清欢，喜乐常安，事事如愿。" },
-            { number: 7, name: "回锅肉盖饭", blessing: "烟火暖人心，好运伴前行。" },
-            { number: 8, name: "香菇滑鸡盖饭", blessing: "三餐四季，温柔有趣，平安无忧。" },
-            { number: 9, name: "咖喱鸡肉盖饭", blessing: "生活有滋味，好运常相随。" },
-            { number: 10, name: "黑椒牛柳盖饭", blessing: "步履不停，美好不停，日日有惊喜。" },
-            { number: 11, name: "红烧茄子盖饭", blessing: "平淡日子，也有温柔小欢喜。" },
-            { number: 12, name: "农家小炒肉盖饭", blessing: "吃得开心，过得舒心，万事安心。" },
-            { number: 13, name: "鱼香茄子盖饭", blessing: "岁岁常欢愉，年年皆胜意。" },
-            { number: 14, name: "京酱肉丝盖饭", blessing: "三餐暖，四季安，无灾无难。" },
-            { number: 15, name: "葱爆牛肉盖饭", blessing: "元气满满，好运连连，事事圆满。" },
-            { number: 16, name: "蒜苔炒肉盖饭", blessing: "日子滚烫，快乐至上，平安健康。" },
-            { number: 17, name: "豆角烧肉盖饭", blessing: "心有暖阳，万事晴朗。" },
-            { number: 18, name: "红烧鸡块盖饭", blessing: "平安喜乐，得偿所愿，日日是好日。" },
-            { number: 19, name: "孜然牛肉盖饭", blessing: "生活有干劲，事事都顺心。" },
-            { number: 20, name: "酸辣土豆丝盖饭", blessing: "简单知足，便是幸福。" },
-            { number: 21, name: "手撕包菜盖饭", blessing: "清风拂面，好运常伴。" },
-            { number: 22, name: "红烧排骨盖饭", blessing: "福气满满，财运连连，喜乐无边。" },
-            { number: 23, name: "酱爆鸡丁盖饭", blessing: "三餐有味，心中有光，一路向阳。" },
-            { number: 24, name: "木耳炒肉盖饭", blessing: "平安健康，万事顺畅。" },
-            { number: 25, name: "芹菜炒肉盖饭", blessing: "清心自在，喜乐常在。" },
-            { number: 26, name: "韭黄炒蛋盖饭", blessing: "日子温柔，事事顺遂。" },
-            { number: 27, name: "红烧豆腐盖饭", blessing: "平淡安稳，便是人间好光景。" },
-            { number: 28, name: "香辣鸡杂盖饭", blessing: "热气腾腾，好运相逢。" },
-            { number: 29, name: "小炒黄牛肉盖饭", blessing: "勇往直前，好运不断。" },
-            { number: 30, name: "榨菜肉丝盖饭", blessing: "简简单单，快乐相伴。" },
-            { number: 31, name: "黄焖鸡米饭", blessing: "暖锅暖胃更暖心，日日都有好运气。" },
-            { number: 32, name: "黄焖排骨饭", blessing: "排骨飘香，福气满堂。" },
-            { number: 33, name: "黄焖酥肉饭", blessing: "酥香可口，好运常守。" },
-            { number: 34, name: "黄焖茄子煲", blessing: "软糯暖心，万事顺心。" },
-            { number: 35, name: "砂锅牛腩饭", blessing: "牛腩入味，生活有味。" },
-            { number: 36, name: "砂锅鸡块饭", blessing: "热气袅袅，烦恼全消。" },
-            { number: 37, name: "砂锅豆腐煲", blessing: "清淡暖心，平安随身。" },
-            { number: 38, name: "砂锅肥牛饭", blessing: "肥牛鲜香，日子晴朗。" },
-            { number: 39, name: "广式腊味煲仔饭", blessing: "腊香满碗，喜乐常伴。" },
-            { number: 40, name: "香菇滑鸡煲仔饭", blessing: "香飘满屋，幸福常驻。" },
-            { number: 41, name: "豉汁排骨煲仔饭", blessing: "粒粒香甜，好运连连。" },
-            { number: 42, name: "咸鱼鸡粒煲仔饭", blessing: "风味独特，万事顺遂。" },
-            { number: 43, name: "牛腩煲仔饭", blessing: "肉香四溢，顺心如意。" },
-            { number: 44, name: "茄子肉末煲", blessing: "软糯鲜香，平安健康。" },
-            { number: 45, name: "豆腐肉末煲", blessing: "清淡养胃，快乐加倍。" },
-            { number: 46, name: "金针菇肥牛煲", blessing: "鲜香入味，好运加倍。" },
-            { number: 47, name: "酸菜鱼片煲", blessing: "酸爽开胃，心情明媚。" },
-            { number: 48, name: "香辣虾煲", blessing: "红红火火，好运多多。" },
-            { number: 49, name: "鸡翅煲", blessing: "翅香满屋，幸福常驻。" },
-            { number: 50, name: "肥肠煲", blessing: "风味十足，事事知足。" },
-            { number: 51, name: "土豆粉煲", blessing: "Q弹爽滑，快乐无价。" },
-            { number: 52, name: "鸭血粉丝煲", blessing: "暖心暖胃，平安相随。" },
-            { number: 53, name: "萝卜牛腩煲", blessing: "温润滋补，平安幸福。" },
-            { number: 54, name: "莲藕排骨汤煲", blessing: "汤鲜味美，健康常陪。" },
-            { number: 55, name: "冬瓜排骨汤煲", blessing: "清淡解腻，万事顺利。" },
-            { number: 56, name: "番茄鸡蛋面", blessing: "一碗热面，温暖全天。" },
-            { number: 57, name: "红烧牛肉面", blessing: "面香肉香，好运成双。" },
-            { number: 58, name: "香辣牛肉面", blessing: "热辣开胃，心情愉快。" },
-            { number: 59, name: "炸酱面", blessing: "酱香浓郁，顺心顺意。" },
-            { number: 60, name: "葱油拌面", blessing: "葱香扑鼻，万事大吉。" },
-            { number: 61, name: "担担面", blessing: "麻辣鲜香，平安健康。" },
-            { number: 62, name: "油泼面", blessing: "热油一泼，好运多多。" },
-            { number: 63, name: "臊子面", blessing: "臊子鲜香，日子晴朗。" },
-            { number: 64, name: "鸡丝拌面", blessing: "清爽可口，快乐常有。" },
-            { number: 65, name: "麻酱拌面", blessing: "麻香浓郁，万事顺利。" },
-            { number: 66, name: "青椒鸡蛋面", blessing: "清淡鲜香，平安吉祥。" },
-            { number: 67, name: "香菇鸡肉面", blessing: "菌香鸡肉，幸福长久。" },
-            { number: 68, name: "排骨面", blessing: "排骨鲜香，福气满堂。" },
-            { number: 69, name: "肥肠面", blessing: "风味独特，好运不缺。" },
-            { number: 70, name: "猪肝面", blessing: "滋补暖心，万事顺心。" },
-            { number: 71, name: "腰花面", blessing: "鲜香入味，好运加倍。" },
-            { number: 72, name: "雪菜肉丝面", blessing: "清淡解腻，平安顺利。" },
-            { number: 73, name: "榨菜肉丝面", blessing: "简单美味，快乐相随。" },
-            { number: 74, name: "清汤牛肉面", blessing: "清汤暖心，平安随身。" },
-            { number: 75, name: "麻辣小面", blessing: "麻辣过瘾，事事顺心。" },
-            { number: 76, name: "刀削面（番茄/牛肉）", blessing: "面劲道，人逍遥，好运到。" },
-            { number: 77, name: "炒刀削面", blessing: "炒香四溢，顺心如意。" },
-            { number: 78, name: "烩面", blessing: "汤浓面香，幸福安康。" },
-            { number: 79, name: "拉条子拌面", blessing: "筋道好吃，平安无事。" },
-            { number: 80, name: "焖面", blessing: "焖香满屋，快乐常驻。" },
-            { number: 81, name: "阳春面", blessing: "清淡素雅，平安到家。" },
-            { number: 82, name: "乌冬面（汤/炒）", blessing: "Q弹爽滑，好运常伴。" },
-            { number: 83, name: "意式肉酱面", blessing: "异域风味，好运加倍。" },
-            { number: 84, name: "黑椒牛柳意面", blessing: "黑椒鲜香，万事顺畅。" },
-            { number: 85, name: "海鲜意面", blessing: "海鲜鲜美，平安顺遂。" },
-            { number: 86, name: "螺蛳粉", blessing: "臭香经典，快乐无限。" },
-            { number: 87, name: "原味螺蛳粉", blessing: "原味鲜香，平安健康。" },
-            { number: 88, name: "三鲜螺蛳粉", blessing: "三鲜美味，好运相随。" },
-            { number: 89, name: "桂林米粉", blessing: "米粉劲道，好运来到。" },
-            { number: 90, name: "卤菜粉", blessing: "卤香扑鼻，万事大吉。" },
-            { number: 91, name: "牛腩粉", blessing: "牛腩鲜香，日子晴朗。" },
-            { number: 92, name: "猪脚粉", blessing: "猪脚软糯，福气多多。" },
-            { number: 93, name: "老友粉", blessing: "老友相伴，快乐常伴。" },
-            { number: 94, name: "云南过桥米线", blessing: "米线细长，幸福久长。" },
-            { number: 95, name: "鸡汤米线", blessing: "鸡汤暖心，平安随身。" },
-            { number: 96, name: "麻辣米线", blessing: "麻辣开胃，心情愉快。" },
-            { number: 97, name: "番茄米线", blessing: "番茄酸甜，好运连连。" },
-            { number: 98, name: "肥牛米线", blessing: "肥牛鲜香，万事顺畅。" },
-            { number: 99, name: "酸菜鱼米线", blessing: "鱼鲜米线，平安如愿。" },
-            { number: 100, name: "砂锅米线", blessing: "砂锅保温，好运升温。" },
-            { number: 101, name: "炒米粉", blessing: "炒香四溢，顺心如意。" },
-            { number: 102, name: "炒河粉", blessing: "河粉滑嫩，快乐满分。" },
-            { number: 103, name: "干炒牛河", blessing: "牛河鲜香，平安吉祥。" },
-            { number: 104, name: "湿炒牛河", blessing: "鲜香入味，好运加倍。" },
-            { number: 105, name: "南昌拌粉", blessing: "拌香可口，好运常有。" },
-            { number: 106, name: "瓦罐汤拌粉", blessing: "汤粉搭配，幸福加倍。" },
-            { number: 107, name: "衡阳鱼粉", blessing: "鱼鲜粉香，平安健康。" },
-            { number: 108, name: "郴州鱼粉", blessing: "风味独特，万事顺遂。" },
-            { number: 109, name: "贵州羊肉粉", blessing: "羊肉鲜香，暖身安康。" },
-            { number: 110, name: "花溪牛肉粉", blessing: "牛肉香浓，好运长虹。" },
-            { number: 111, name: "蛋炒饭", blessing: "一碗炒饭，温暖相伴。" },
-            { number: 112, name: "火腿蛋炒饭", blessing: "火腿蛋香，快乐满堂。" },
-            { number: 113, name: "扬州炒饭", blessing: "什锦鲜香，平安吉祥。" },
-            { number: 114, name: "咖喱炒饭", blessing: "咖喱香浓，万事成功。" },
-            { number: 115, name: "黑椒牛柳炒饭", blessing: "牛柳鲜香，好运成双。" },
-            { number: 116, name: "香菇鸡丁炒饭", blessing: "菌香鸡肉，幸福长久。" },
-            { number: 117, name: "鱼香肉丝炒饭", blessing: "鱼香浓郁，顺心顺意。" },
-            { number: 118, name: "回锅肉炒饭", blessing: "肉香扑鼻，万事大吉。" },
-            { number: 119, name: "酱油炒饭", blessing: "酱香浓郁，平安顺利。" },
-            { number: 120, name: "腊肉炒饭", blessing: "腊香满碗，喜乐常伴。" },
-            { number: 121, name: "炒面", blessing: "炒面飘香，好运登场。" },
-            { number: 122, name: "鸡蛋炒面", blessing: "蛋香面香，平安健康。" },
-            { number: 123, name: "肉丝炒面", blessing: "肉丝鲜香，日子晴朗。" },
-            { number: 124, name: "牛肉炒面", blessing: "牛肉劲道，好运来到。" },
-            { number: 125, name: "海鲜炒面", blessing: "海鲜鲜美，平安顺遂。" },
-            { number: 126, name: "炒河粉", blessing: "河粉滑嫩，快乐满分。" },
-            { number: 127, name: "炒米粉", blessing: "米粉劲道，幸福围绕。" },
-            { number: 128, name: "炒乌冬", blessing: "乌冬Q弹，好运常伴。" },
-            { number: 129, name: "炒粿条", blessing: "粿条香滑，顺心顺意。" },
-            { number: 130, name: "孜然炒面", blessing: "孜然飘香，万事顺畅。" },
-            { number: 131, name: "一荤一素套餐", blessing: "荤素搭配，健康加倍。" },
-            { number: 132, name: "两荤一素套餐", blessing: "营养均衡，万事顺心。" },
-            { number: 133, name: "三荤两素套餐", blessing: "丰盛美味，好运相随。" },
-            { number: 134, name: "红烧鸡块套餐", blessing: "鸡块鲜香，平安健康。" },
-            { number: 135, name: "香酥鸡排套餐", blessing: "鸡排酥脆，快乐翻倍。" },
-            { number: 136, name: "卤味双拼套餐", blessing: "双拼美味，幸福加倍。" },
-            { number: 137, name: "烧鸭饭套餐", blessing: "烧鸭飘香，福气满堂。" },
-            { number: 138, name: "白切鸡套餐", blessing: "清淡鲜香，平安吉祥。" },
-            { number: 139, name: "豉油鸡套餐", blessing: "豉香浓郁，顺心顺意。" },
-            { number: 140, name: "盐焗鸡套餐", blessing: "盐焗鲜香，万事顺畅。" },
-            { number: 141, name: "叉烧饭套餐", blessing: "叉烧香甜，好运连连。" },
-            { number: 142, name: "烧鹅饭套餐", blessing: "烧鹅酥脆，福气翻倍。" },
-            { number: 143, name: "隆江猪脚饭套餐", blessing: "猪脚软糯，平安喜乐。" },
-            { number: 144, name: "广式烧腊三拼", blessing: "三拼美味，幸福常陪。" },
-            { number: 145, name: "香干炒肉套餐", blessing: "香干肉香，快乐满堂。" },
-            { number: 146, name: "鱼香肉丝套餐", blessing: "鱼香入味，好运加倍。" },
-            { number: 147, name: "宫保鸡丁套餐", blessing: "鸡丁鲜香，万事晴朗。" },
-            { number: 148, name: "土豆牛肉套餐", blessing: "牛肉土豆，平安长久。" },
-            { number: 149, name: "咖喱鸡套餐", blessing: "咖喱香浓，好运长虹。" },
-            { number: 150, name: "黑椒牛柳套餐", blessing: "牛柳黑椒，顺心顺意。" },
-            { number: 151, name: "水煮肉片套餐", blessing: "麻辣鲜香，平安健康。" },
-            { number: 152, name: "麻婆豆腐套餐", blessing: "豆腐麻辣，快乐无价。" },
-            { number: 153, name: "番茄炒蛋套餐", blessing: "番茄鸡蛋，简单温暖。" },
-            { number: 154, name: "手撕包菜套餐", blessing: "清淡解腻，万事顺利。" },
-            { number: 155, name: "红烧茄子套餐", blessing: "茄子软糯，好运多多。" },
-            { number: 156, name: "农家小炒肉套餐", blessing: "小炒肉香，福气满堂。" },
-            { number: 157, name: "青椒肉丝套餐", blessing: "青椒肉丝，平安无事。" },
-            { number: 158, name: "香菇滑鸡套餐", blessing: "滑鸡菌香，幸福久长。" },
-            { number: 159, name: "回锅肉套餐", blessing: "回锅肉香，万事顺畅。" },
-            { number: 160, name: "蒜苔炒肉套餐", blessing: "蒜苔肉香，快乐安康。" },
-            { number: 161, name: "皮蛋瘦肉粥", blessing: "一碗热粥，暖身无忧。" },
-            { number: 162, name: "香菇鸡肉粥", blessing: "粥香鸡香，平安健康。" },
-            { number: 163, name: "牛肉粥", blessing: "牛肉粥鲜，好运连连。" },
-            { number: 164, name: "排骨粥", blessing: "排骨粥香，福气满堂。" },
-            { number: 165, name: "海鲜粥", blessing: "海鲜粥鲜，平安如愿。" },
-            { number: 166, name: "青菜粥", blessing: "清淡养胃，快乐加倍。" },
-            { number: 167, name: "小米粥", blessing: "小米养胃，平安相随。" },
-            { number: 168, name: "南瓜粥", blessing: "南瓜香甜，暖心每天。" },
-            { number: 169, name: "八宝粥", blessing: "八宝营养，万事吉祥。" },
-            { number: 170, name: "黑米粥", blessing: "黑米滋补，平安幸福。" },
-            { number: 171, name: "豆浆+油条", blessing: "豆浆油条，快乐逍遥。" },
-            { number: 172, name: "豆浆+包子", blessing: "豆浆包子，平安无事。" },
-            { number: 173, name: "鲜肉包", blessing: "肉包鲜香，好运登场。" },
-            { number: 174, name: "菜包", blessing: "菜包清淡，健康相伴。" },
-            { number: 175, name: "烧麦", blessing: "烧麦鲜香，平安吉祥。" },
-            { number: 176, name: "蒸饺", blessing: "蒸饺美味，幸福常陪。" },
-            { number: 177, name: "馄饨", blessing: "馄饨暖心，万事顺心。" },
-            { number: 178, name: "小馄饨", blessing: "小巧鲜香，快乐满堂。" },
-            { number: 179, name: "云吞面", blessing: "云吞面香，平安健康。" },
-            { number: 180, name: "清汤云吞", blessing: "清汤暖心，好运随身。" },
-            { number: 181, name: "鸡蛋饼", blessing: "蛋饼香软，平安相伴。" },
-            { number: 182, name: "手抓饼", blessing: "手抓饼香，快乐无疆。" },
-            { number: 183, name: "杂粮煎饼", blessing: "煎饼营养，万事吉祥。" },
-            { number: 184, name: "饭团", blessing: "饭团饱腹，平安幸福。" },
-            { number: 185, name: "蒸玉米/红薯", blessing: "粗粮健康，好运长长。" },
-            { number: 186, name: "经典麻辣烫", blessing: "麻辣滚烫，好运登场。" },
-            { number: 187, name: "骨汤麻辣烫", blessing: "骨汤暖心，平安随身。" },
-            { number: 188, name: "番茄麻辣烫", blessing: "番茄酸甜，快乐天天。" },
-            { number: 189, name: "麻辣拌", blessing: "麻辣鲜香，万事顺畅。" },
-            { number: 190, name: "干拌麻辣烫", blessing: "干拌入味，好运加倍。" },
-            { number: 191, name: "川味冒菜", blessing: "冒菜香辣，心情豁达。" },
-            { number: 192, name: "冒肥牛", blessing: "肥牛冒香，福气满堂。" },
-            { number: 193, name: "冒鸭血", blessing: "鸭血鲜嫩，平安如愿。" },
-            { number: 194, name: "冒毛肚", blessing: "毛肚脆爽，好运常享。" },
-            { number: 195, name: "冒酥肉", blessing: "酥肉冒香，快乐安康。" },
-            { number: 196, name: "麻辣香锅（微辣）", blessing: "微辣开胃，心情明媚。" },
-            { number: 197, name: "麻辣香锅（中辣）", blessing: "中辣过瘾，事事顺心。" },
-            { number: 198, name: "麻辣香锅（特辣）", blessing: "特辣够味，快乐加倍。" },
-            { number: 199, name: "香锅肥牛", blessing: "肥牛香锅，顺心顺意。" },
-            { number: 200, name: "香锅鸡块", blessing: "鸡块香锅，平安健康。" },
-            { number: 201, name: "香锅虾", blessing: "香锅大虾，好运到家。" },
-            { number: 202, name: "香锅毛肚", blessing: "毛肚脆香，万事晴朗。" },
-            { number: 203, name: "香锅酥肉", blessing: "酥肉香锅，幸福多多。" },
-            { number: 204, name: "香锅豆腐", blessing: "豆腐香锅，平安稳妥。" },
-            { number: 205, name: "香锅素菜拼", blessing: "素菜清香，健康久长。" },
-            { number: 206, name: "单人小火锅（清汤）", blessing: "清汤小锅，暖心暖窝。" },
-            { number: 207, name: "单人小火锅（麻辣）", blessing: "麻辣小锅，红红火火。" },
-            { number: 208, name: "单人番茄火锅", blessing: "番茄火锅，酸甜快乐。" },
-            { number: 209, name: "单人菌汤火锅", blessing: "菌汤鲜香，平安吉祥。" },
-            { number: 210, name: "肥牛小火锅", blessing: "肥牛火锅，好运多多。" },
-            { number: 211, name: "肥羊小火锅", blessing: "肥羊火锅，暖身安康。" },
-            { number: 212, name: "鸡块小火锅", blessing: "鸡块火锅，快乐常乐。" },
-            { number: 213, name: "排骨小火锅", blessing: "排骨火锅，福气满窝。" },
-            { number: 214, name: "鱼片小火锅", blessing: "鱼片火锅，鲜爽快乐。" },
-            { number: 215, name: "虾滑小火锅", blessing: "虾滑Q弹，好运常伴。" },
-            { number: 216, name: "毛肚小火锅", blessing: "毛肚火锅，脆爽红火。" },
-            { number: 217, name: "酥肉小火锅", blessing: "酥肉火锅，幸福稳妥。" },
-            { number: 218, name: "丸子小火锅", blessing: "丸子火锅，团圆快乐。" },
-            { number: 219, name: "素菜小火锅", blessing: "素菜火锅，健康常乐。" },
-            { number: 220, name: "鸳鸯小火锅", blessing: "鸳鸯双味，好运加倍。" },
-            { number: 221, name: "烤羊肉串", blessing: "羊肉烤香，好运登场。" },
-            { number: 222, name: "烤牛肉串", blessing: "牛肉烤香，平安健康。" },
-            { number: 223, name: "烤鸡翅", blessing: "鸡翅烤香，快乐满堂。" },
-            { number: 224, name: "烤鸡腿", blessing: "鸡腿烤香，福气满堂。" },
-            { number: 225, name: "烤五花肉", blessing: "五花肉香，万事顺畅。" },
-            { number: 226, name: "烤香肠", blessing: "香肠烤香，平安吉祥。" },
-            { number: 227, name: "烤面筋", blessing: "面筋烤香，快乐无疆。" },
-            { number: 228, name: "烤茄子", blessing: "茄子烤香，好运长长。" },
-            { number: 229, name: "烤韭菜", blessing: "韭菜烤香，健康久长。" },
-            { number: 230, name: "烤金针菇", blessing: "金针菇香，顺心顺意。" },
-            { number: 231, name: "烤馒头片", blessing: "馒头片香，平安安康。" },
-            { number: 232, name: "炸鸡排", blessing: "鸡排酥脆，快乐翻倍。" },
-            { number: 233, name: "炸鸡腿", blessing: "鸡腿酥脆，好运相随。" },
-            { number: 234, name: "炸鸡翅", blessing: "鸡翅酥脆，幸福加倍。" },
-            { number: 235, name: "炸薯条", blessing: "薯条香脆，快乐万岁。" },
-            { number: 236, name: "炸串", blessing: "炸串飘香，万事吉祥。" },
-            { number: 237, name: "关东煮", blessing: "关东煮暖，平安相伴。" },
-            { number: 238, name: "卤蛋", blessing: "卤蛋鲜香，平安健康。" },
-            { number: 239, name: "卤豆干", blessing: "豆干卤香，快乐满堂。" },
-            { number: 240, name: "卤鸭脖", blessing: "鸭脖卤香，好运长长。" },
-            { number: 241, name: "卤鸭翅", blessing: "鸭翅卤香，万事晴朗。" },
-            { number: 242, name: "卤鸡爪", blessing: "鸡爪卤香，幸福久长。" },
-            { number: 243, name: "卤猪蹄", blessing: "猪蹄软糯，福气多多。" },
-            { number: 244, name: "卤藕片", blessing: "藕片卤香，平安吉祥。" },
-            { number: 245, name: "卤海带", blessing: "海带卤香，快乐安康。" },
-            { number: 246, name: "鸡胸肉沙拉", blessing: "沙拉低脂，健康加持。" },
-            { number: 247, name: "牛肉沙拉", blessing: "牛肉沙拉，活力到家。" },
-            { number: 248, name: "鲜虾沙拉", blessing: "鲜虾沙拉，鲜爽快乐。" },
-            { number: 249, name: "蔬菜沙拉", blessing: "蔬菜沙拉，清爽无压。" },
-            { number: 250, name: "鸡胸肉杂粮饭", blessing: "杂粮鸡胸，健康轻松。" },
-            { number: 251, name: "牛肉杂粮饭", blessing: "牛肉杂粮，活力满满。" },
-            { number: 252, name: "鲜虾杂粮饭", blessing: "鲜虾杂粮，鲜爽安康。" },
-            { number: 253, name: "鸡胸肉三明治", blessing: "三明治香，健康久长。" },
-            { number: 254, name: "金枪鱼三明治", blessing: "金枪鱼香，万事顺畅。" },
-            { number: 255, name: "鸡蛋三明治", blessing: "鸡蛋三明，平安安心。" },
-            { number: 256, name: "蔬菜三明治", blessing: "蔬菜三明，清爽开心。" },
-            { number: 257, name: "鸡胸肉卷饼", blessing: "卷饼低脂，快乐不止。" },
-            { number: 258, name: "牛肉卷饼", blessing: "牛肉卷饼，活力随行。" },
-            { number: 259, name: "蔬菜卷饼", blessing: "蔬菜卷饼，清爽宁静。" },
-            { number: 260, name: "水煮菜套餐", blessing: "水煮清淡，健康相伴。" },
-            { number: 261, name: "清蒸鱼套餐", blessing: "清蒸鱼鲜，平安如愿。" },
-            { number: 262, name: "白煮蛋套餐", blessing: "白蛋营养，万事吉祥。" },
-            { number: 263, name: "紫薯鸡胸肉餐", blessing: "紫薯鸡胸，健康轻松。" },
-            { number: 264, name: "玉米虾仁餐", blessing: "玉米虾仁，鲜爽相随。" },
-            { number: 265, name: "低卡意面餐", blessing: "低卡意面，快乐不减。" },
-            { number: 266, name: "香辣鸡腿堡", blessing: "汉堡香辣，快乐豁达。" },
-            { number: 267, name: "奥尔良鸡腿堡", blessing: "奥尔良香，平安健康。" },
-            { number: 268, name: "牛肉堡", blessing: "牛肉汉堡，好运来到。" },
-            { number: 269, name: "鳕鱼堡", blessing: "鳕鱼汉堡，鲜爽快乐。" },
-            { number: 270, name: "鸡肉卷", blessing: "鸡肉卷香，万事顺畅。" },
-            { number: 271, name: "牛肉卷", blessing: "牛肉卷香，福气满堂。" },
-            { number: 272, name: "薯条", blessing: "薯条香脆，快乐万岁。" },
-            { number: 273, name: "鸡块", blessing: "鸡块酥脆，好运翻倍。" },
-            { number: 274, name: "鸡米花", blessing: "鸡米花香，平安吉祥。" },
-            { number: 275, name: "蛋挞", blessing: "蛋挞香甜，暖心每天。" },
-            { number: 276, name: "芝士披萨", blessing: "披萨芝士，快乐不止。" },
-            { number: 277, name: "培根披萨", blessing: "培根披萨，香飘万家。" },
-            { number: 278, name: "香肠披萨", blessing: "香肠披萨，美味到家。" },
-            { number: 279, name: "水果披萨", blessing: "水果披萨，甜满天下。" },
-            { number: 280, name: "牛肉披萨", blessing: "牛肉披萨，香爽快乐。" },
-            { number: 281, name: "鸡肉披萨", blessing: "鸡肉披萨，健康常佳。" },
-            { number: 282, name: "海鲜披萨", blessing: "海鲜披萨，鲜爽到家。" },
-            { number: 283, name: "意式披萨", blessing: "意式披萨，风味绝佳。" },
-            { number: 284, name: "美式热狗", blessing: "热狗鲜香，快乐无疆。" },
-            { number: 285, name: "芝士焗饭", blessing: "焗饭芝士，幸福不止。" },
-            { number: 286, name: "酸菜鱼米饭", blessing: "酸菜鱼香，平安健康。" },
-            { number: 287, name: "番茄鱼米饭", blessing: "番茄鱼鲜，好运连连。" },
-            { number: 288, name: "青花椒鱼米饭", blessing: "青花椒香，万事晴朗。" },
-            { number: 289, name: "水煮鱼米饭", blessing: "水煮鱼香，暖身安康。" },
-            { number: 290, name: "水煮肉片", blessing: "水煮肉片，麻辣过瘾。" },
-            { number: 291, name: "水煮肥牛", blessing: "水煮肥牛，香滑无忧。" },
-            { number: 292, name: "毛血旺", blessing: "毛血旺香，红红火火。" },
-            { number: 293, name: "辣子鸡", blessing: "辣子鸡香，辣得舒畅。" },
-            { number: 294, name: "口水鸡", blessing: "口水鸡香，清爽安康。" },
-            { number: 295, name: "藤椒鸡", blessing: "藤椒鸡香，鲜麻舒畅。" },
-            { number: 296, name: "川味肥肠饭", blessing: "肥肠饭香，风味无双。" },
-            { number: 297, name: "川味腊肉饭", blessing: "腊肉饭香，腊味绵长。" },
-            { number: 298, name: "干锅土豆片", blessing: "干锅土豆，香酥可口。" },
-            { number: 299, name: "干锅花菜", blessing: "干锅花菜，清香自在。" },
-            { number: 300, name: "干锅鸡", blessing: "干锅鸡香，辣得舒畅。" },
-            { number: 301, name: "牛肉汤粉", blessing: "牛肉汤粉，鲜香满分。" },
-            { number: 302, name: "羊肉汤粉", blessing: "羊肉汤粉，暖身安稳。" },
-            { number: 303, name: "鸡汤粉", blessing: "鸡汤粉香，平安健康。" },
-            { number: 304, name: "排骨汤粉", blessing: "排骨汤粉，福气满分。" },
-            { number: 305, name: "鱼片汤粉", blessing: "鱼片汤粉，鲜爽安稳。" },
-            { number: 306, name: "牛肉汤面", blessing: "牛肉汤面，暖心每天。" },
-            { number: 307, name: "羊肉汤面", blessing: "羊肉汤面，暖身无厌。" },
-            { number: 308, name: "鸡汤面", blessing: "鸡汤面香，平安吉祥。" },
-            { number: 309, name: "排骨汤面", blessing: "排骨汤面，福气常伴。" },
-            { number: 310, name: "鱼片汤面", blessing: "鱼片汤面，鲜爽如愿。" },
-            { number: 311, name: "菌菇汤饭", blessing: "菌菇汤饭，清香温暖。" },
-            { number: 312, name: "鸡汤饭", blessing: "鸡汤饭香，平安健康。" },
-            { number: 313, name: "排骨汤饭", blessing: "排骨汤饭，福气满满。" },
-            { number: 314, name: "牛肉汤饭", blessing: "牛肉汤饭，鲜香温暖。" },
-            { number: 315, name: "番茄汤饭", blessing: "番茄汤饭，酸甜温暖。" },
-            { number: 316, name: "紫菜蛋花汤饭", blessing: "紫菜蛋花，清淡如家。" },
-            { number: 317, name: "丝瓜蛋汤饭", blessing: "丝瓜蛋汤，清爽安康。" },
-            { number: 318, name: "冬瓜海带汤饭", blessing: "冬瓜海带，清淡自在。" },
-            { number: 319, name: "萝卜汤饭", blessing: "萝卜汤饭，温润温暖。" },
-            { number: 320, name: "白菜汤饭", blessing: "白菜汤饭，清淡平安。" },
-            { number: 321, name: "沙县小吃扁食", blessing: "扁食鲜香，平安健康。" },
-            { number: 322, name: "沙县小吃拌面", blessing: "拌面飘香，万事顺畅。" },
-            { number: 323, name: "沙县小吃蒸饺", blessing: "蒸饺美味，幸福常陪。" },
-            { number: 324, name: "兰州拉面", blessing: "拉面劲道，好运来到。" },
-            { number: 325, name: "新疆大盘鸡面", blessing: "大盘鸡香，福气满堂。" },
-            { number: 326, name: "陕西肉夹馍", blessing: "肉夹馍香，快乐无疆。" },
-            { number: 327, name: "陕西凉皮", blessing: "凉皮清爽，心情舒畅。" },
-            { number: 328, name: "武汉热干面", blessing: "热干面香，平安吉祥。" },
-            { number: 329, name: "长沙臭豆腐", blessing: "臭香经典，快乐无限。" },
-            { number: 330, name: "重庆小面", blessing: "小面麻辣，快乐无价。" },
-            { number: 331, name: "成都抄手", blessing: "抄手鲜香，万事晴朗。" },
-            { number: 332, name: "广东云吞", blessing: "云吞暖心，平安随身。" },
-            { number: 333, name: "福建福鼎肉片", blessing: "肉片鲜香，健康久长。" },
-            { number: 334, name: "浙江小笼包", blessing: "小笼包香，福气满堂。" },
-            { number: 335, name: "上海生煎包", blessing: "生煎包香，快乐安康。" },
-            { number: 336, name: "天津煎饼果子", blessing: "煎饼果子，平安无事。" },
-            { number: 337, name: "东北锅包肉", blessing: "锅包肉香，酸甜舒畅。" },
-            { number: 338, name: "东北地三鲜", blessing: "地三鲜香，清淡安康。" },
-            { number: 339, name: "河南胡辣汤", blessing: "胡辣汤暖，好运相伴。" },
-            { number: 340, name: "安徽板面", blessing: "板面劲道，幸福围绕。" },
-            { number: 341, name: "江西瓦罐汤", blessing: "瓦罐汤香，暖心暖肠。" },
-            { number: 342, name: "湖北豆皮", blessing: "豆皮香软，平安相伴。" },
-            { number: 343, name: "湖南米粉", blessing: "米粉鲜香，万事顺畅。" },
-            { number: 344, name: "广西酸笋粉", blessing: "酸笋粉香，风味悠长。" },
-            { number: 345, name: "海南鸡饭", blessing: "鸡饭清香，平安吉祥。" },
-            { number: 346, name: "台湾卤肉饭", blessing: "卤肉饭香，福气满堂。" },
-            { number: 347, name: "台湾鸡排饭", blessing: "鸡排饭香，快乐安康。" },
-            { number: 348, name: "韩式拌饭", blessing: "拌饭鲜香，韩式风光。" },
-            { number: 349, name: "韩式炸鸡", blessing: "炸鸡酥脆，快乐翻倍。" },
-            { number: 350, name: "日式拉面", blessing: "拉面日式，鲜爽舒适。" },
-            { number: 351, name: "日式咖喱饭", blessing: "咖喱日式，香顺如意。" },
-            { number: 352, name: "日式蛋包饭", blessing: "蛋包饭香，平安健康。" },
-            { number: 353, name: "泰式咖喱饭", blessing: "泰式咖喱，香飘万里。" },
-            { number: 354, name: "泰式冬阴功粉", blessing: "冬阴功粉，酸辣过瘾。" },
-            { number: 355, name: "越南河粉", blessing: "河粉越南，鲜爽平安。" },
-            { number: 356, name: "豆腐脑（甜/咸）", blessing: "豆腐脑香，暖心暖肠。" },
-            { number: 357, name: "锅贴", blessing: "锅贴鲜香，平安吉祥。" },
-            { number: 358, name: "生煎", blessing: "生煎飘香，万事顺畅。" },
-            { number: 359, name: "麻团", blessing: "麻团香甜，快乐天天。" },
-            { number: 360, name: "糖糕", blessing: "糖糕香甜，暖心每天。" },
-            { number: 361, name: "菜盒子", blessing: "菜盒香软，平安相伴。" },
-            { number: 362, name: "肉盒子", blessing: "肉盒鲜香，福气满堂。" },
-            { number: 363, name: "葱油饼", blessing: "葱油饼香，快乐安康。" },
-            { number: 364, name: "酱香饼", blessing: "酱香饼香，万事顺畅。" },
-            { number: 365, name: "鸡蛋灌饼", blessing: "蛋灌饼香，平安吉祥。" }
-        ];
+// 365道菜品数据（你原来的完整数据）
+const dishData = [
+{ number: 1, name: "鱼香肉丝盖饭", blessing: "三餐有滋味，日子有光亮，平安顺遂每一天。" },
+{ number: 2, name: "宫保鸡丁盖饭", blessing: "生活有滋有味，好运步步相随。" },
+{ number: 3, name: "麻婆豆腐盖饭", blessing: "热气暖身心，万事皆顺心。" },
+{ number: 4, name: "番茄炒蛋盖饭", blessing: "简单最幸福，平安伴朝夕。" },
+{ number: 5, name: "土豆烧牛肉盖饭", blessing: "吃得饱饱，烦恼少少，开心常在。" },
+{ number: 6, name: "青椒肉丝盖饭", blessing: "日子清欢，喜乐常安，事事如愿。" },
+{ number: 7, name: "回锅肉盖饭", blessing: "烟火暖人心，好运伴前行。" },
+{ number: 8, name: "香菇滑鸡盖饭", blessing: "三餐四季，温柔有趣，平安无忧。" },
+{ number: 9, name: "咖喱鸡肉盖饭", blessing: "生活有滋味，好运常相随。" },
+{ number: 10, name: "黑椒牛柳盖饭", blessing: "步履不停，美好不停，日日有惊喜。" },
+{ number: 11, name: "红烧茄子盖饭", blessing: "平淡日子，也有温柔小欢喜。" },
+{ number: 12, name: "农家小炒肉盖饭", blessing: "吃得开心，过得舒心，万事安心。" },
+{ number: 13, name: "鱼香茄子盖饭", blessing: "岁岁常欢愉，年年皆胜意。" },
+{ number: 14, name: "京酱肉丝盖饭", blessing: "三餐暖，四季安，无灾无难。" },
+{ number: 15, name: "葱爆牛肉盖饭", blessing: "元气满满，好运连连，事事圆满。" },
+{ number: 16, name: "蒜苔炒肉盖饭", blessing: "日子滚烫，快乐至上，平安健康。" },
+{ number: 17, name: "豆角烧肉盖饭", blessing: "心有暖阳，万事晴朗。" },
+{ number: 18, name: "红烧鸡块盖饭", blessing: "平安喜乐，得偿所愿，日日是好日。" },
+{ number: 19, name: "孜然牛肉盖饭", blessing: "生活有干劲，事事都顺心。" },
+{ number: 20, name: "酸辣土豆丝盖饭", blessing: "简单知足，便是幸福。" },
+{ number: 21, name: "手撕包菜盖饭", blessing: "清风拂面，好运常伴。" },
+{ number: 22, name: "红烧排骨盖饭", blessing: "福气满满，财运连连，喜乐无边。" },
+{ number: 23, name: "酱爆鸡丁盖饭", blessing: "三餐有味，心中有光，一路向阳。" },
+{ number: 24, name: "木耳炒肉盖饭", blessing: "平安健康，万事顺畅。" },
+{ number: 25, name: "芹菜炒肉盖饭", blessing: "清心自在，喜乐常在。" },
+{ number: 26, name: "韭黄炒蛋盖饭", blessing: "日子温柔，事事顺遂。" },
+{ number: 27, name: "红烧豆腐盖饭", blessing: "平淡安稳，便是人间好光景。" },
+{ number: 28, name: "香辣鸡杂盖饭", blessing: "热气腾腾，好运相逢。" },
+{ number: 29, name: "小炒黄牛肉盖饭", blessing: "勇往直前，好运不断。" },
+{ number: 30, name: "榨菜肉丝盖饭", blessing: "简简单单，快乐相伴。" },
+{ number: 31, name: "黄焖鸡米饭", blessing: "暖锅暖胃更暖心，日日都有好运气。" },
+{ number: 32, name: "黄焖排骨饭", blessing: "排骨飘香，福气满堂。" },
+{ number: 33, name: "黄焖酥肉饭", blessing: "酥香可口，好运常守。" },
+{ number: 34, name: "黄焖茄子煲", blessing: "软糯暖心，万事顺心。" },
+{ number: 35, name: "砂锅牛腩饭", blessing: "牛腩入味，生活有味。" },
+{ number: 36, name: "砂锅鸡块饭", blessing: "热气袅袅，烦恼全消。" },
+{ number: 37, name: "砂锅豆腐煲", blessing: "清淡暖心，平安随身。" },
+{ number: 38, name: "砂锅肥牛饭", blessing: "肥牛鲜香，日子晴朗。" },
+{ number: 39, name: "广式腊味煲仔饭", blessing: "腊香满碗，喜乐常伴。" },
+{ number: 40, name: "香菇滑鸡煲仔饭", blessing: "香飘满屋，幸福常驻。" },
+{ number: 41, name: "豉汁排骨煲仔饭", blessing: "粒粒香甜，好运连连。" },
+{ number: 42, name: "咸鱼鸡粒煲仔饭", blessing: "风味独特，万事顺遂。" },
+{ number: 43, name: "牛腩煲仔饭", blessing: "肉香四溢，顺心如意。" },
+{ number: 44, name: "茄子肉末煲", blessing: "软糯鲜香，平安健康。" },
+{ number: 45, name: "豆腐肉末煲", blessing: "清淡养胃，快乐加倍。" },
+{ number: 46, name: "金针菇肥牛煲", blessing: "鲜香入味，好运加倍。" },
+{ number: 47, name: "酸菜鱼片煲", blessing: "酸爽开胃，心情明媚。" },
+{ number: 48, name: "香辣虾煲", blessing: "红红火火，好运多多。" },
+{ number: 49, name: "鸡翅煲", blessing: "翅香满屋，幸福常驻。" },
+{ number: 50, name: "肥肠煲", blessing: "风味十足，事事知足。" },
+{ number: 51, name: "土豆粉煲", blessing: "Q弹爽滑，快乐无价。" },
+{ number: 52, name: "鸭血粉丝煲", blessing: "暖心暖胃，平安相随。" },
+{ number: 53, name: "萝卜牛腩煲", blessing: "温润滋补，平安幸福。" },
+{ number: 54, name: "莲藕排骨汤煲", blessing: "汤鲜味美，健康常陪。" },
+{ number: 55, name: "冬瓜排骨汤煲", blessing: "清淡解腻，万事顺利。" },
+{ number: 56, name: "番茄鸡蛋面", blessing: "一碗热面，温暖全天。" },
+{ number: 57, name: "红烧牛肉面", blessing: "面香肉香，好运成双。" },
+{ number: 58, name: "香辣牛肉面", blessing: "热辣开胃，心情愉快。" },
+{ number: 59, name: "炸酱面", blessing: "酱香浓郁，顺心顺意。" },
+{ number: 60, name: "葱油拌面", blessing: "葱香扑鼻，万事大吉。" },
+{ number: 61, name: "担担面", blessing: "麻辣鲜香，平安健康。" },
+{ number: 62, name: "油泼面", blessing: "热油一泼，好运多多。" },
+{ number: 63, name: "臊子面", blessing: "臊子鲜香，日子晴朗。" },
+{ number: 64, name: "鸡丝拌面", blessing: "清爽可口，快乐常有。" },
+{ number: 65, name: "麻酱拌面", blessing: "麻香浓郁，万事顺利。" },
+{ number: 66, name: "青椒鸡蛋面", blessing: "清淡鲜香，平安吉祥。" },
+{ number: 67, name: "香菇鸡肉面", blessing: "菌香鸡肉，幸福长久。" },
+{ number: 68, name: "排骨面", blessing: "排骨鲜香，福气满堂。" },
+{ number: 69, name: "肥肠面", blessing: "风味独特，好运不缺。" },
+{ number: 70, name: "猪肝面", blessing: "滋补暖心，万事顺心。" },
+{ number: 71, name: "腰花面", blessing: "鲜香入味，好运加倍。" },
+{ number: 72, name: "雪菜肉丝面", blessing: "清淡解腻，平安顺利。" },
+{ number: 73, name: "榨菜肉丝面", blessing: "简单美味，快乐相随。" },
+{ number: 74, name: "清汤牛肉面", blessing: "清汤暖心，平安随身。" },
+{ number: 75, name: "麻辣小面", blessing: "麻辣过瘾，事事顺心。" },
+{ number: 76, name: "刀削面（番茄/牛肉）", blessing: "面劲道，人逍遥，好运到。" },
+{ number: 77, name: "炒刀削面", blessing: "炒香四溢，顺心如意。" },
+{ number: 78, name: "烩面", blessing: "汤浓面香，幸福安康。" },
+{ number: 79, name: "拉条子拌面", blessing: "筋道好吃，平安无事。" },
+{ number: 80, name: "焖面", blessing: "焖香满屋，快乐常驻。" },
+{ number: 81, name: "阳春面", blessing: "清淡素雅，平安到家。" },
+{ number: 82, name: "乌冬面（汤/炒）", blessing: "Q弹爽滑，好运常伴。" },
+{ number: 83, name: "意式肉酱面", blessing: "异域风味，好运加倍。" },
+{ number: 84, name: "黑椒牛柳意面", blessing: "黑椒鲜香，万事顺畅。" },
+{ number: 85, name: "海鲜意面", blessing: "海鲜鲜美，平安顺遂。" },
+{ number: 86, name: "螺蛳粉", blessing: "臭香经典，快乐无限。" },
+{ number: 87, name: "原味螺蛳粉", blessing: "原味鲜香，平安健康。" },
+{ number: 88, name: "三鲜螺蛳粉", blessing: "三鲜美味，好运相随。" },
+{ number: 89, name: "桂林米粉", blessing: "米粉劲道，好运来到。" },
+{ number: 90, name: "卤菜粉", blessing: "卤香扑鼻，万事大吉。" },
+{ number: 91, name: "牛腩粉", blessing: "牛腩鲜香，日子晴朗。" },
+{ number: 92, name: "猪脚粉", blessing: "猪脚软糯，福气多多。" },
+{ number: 93, name: "老友粉", blessing: "老友相伴，快乐常伴。" },
+{ number: 94, name: "云南过桥米线", blessing: "米线细长，幸福久长。" },
+{ number: 95, name: "鸡汤米线", blessing: "鸡汤暖心，平安随身。" },
+{ number: 96, name: "麻辣米线", blessing: "麻辣开胃，心情愉快。" },
+{ number: 97, name: "番茄米线", blessing: "番茄酸甜，好运连连。" },
+{ number: 98, name: "肥牛米线", blessing: "肥牛鲜香，万事顺畅。" },
+{ number: 99, name: "酸菜鱼米线", blessing: "鱼鲜米线，平安如愿。" },
+{ number: 100, name: "砂锅米线", blessing: "砂锅保温，好运升温。" },
+{ number: 101, name: "炒米粉", blessing: "炒香四溢，顺心如意。" },
+{ number: 102, name: "炒河粉", blessing: "河粉滑嫩，快乐满分。" },
+{ number: 103, name: "干炒牛河", blessing: "牛河鲜香，平安吉祥。" },
+{ number: 104, name: "湿炒牛河", blessing: "鲜香入味，好运加倍。" },
+{ number: 105, name: "南昌拌粉", blessing: "拌香可口，好运常有。" },
+{ number: 106, name: "瓦罐汤拌粉", blessing: "汤粉搭配，幸福加倍。" },
+{ number: 107, name: "衡阳鱼粉", blessing: "鱼鲜粉香，平安健康。" },
+{ number: 108, name: "郴州鱼粉", blessing: "风味独特，万事顺遂。" },
+{ number: 109, name: "贵州羊肉粉", blessing: "羊肉鲜香，暖身安康。" },
+{ number: 110, name: "花溪牛肉粉", blessing: "牛肉香浓，好运长虹。" },
+{ number: 111, name: "蛋炒饭", blessing: "一碗炒饭，温暖相伴。" },
+{ number: 112, name: "火腿蛋炒饭", blessing: "火腿蛋香，快乐满堂。" },
+{ number: 113, name: "扬州炒饭", blessing: "什锦鲜香，平安吉祥。" },
+{ number: 114, name: "咖喱炒饭", blessing: "咖喱香浓，万事成功。" },
+{ number: 115, name: "黑椒牛柳炒饭", blessing: "牛柳鲜香，好运成双。" },
+{ number: 116, name: "香菇鸡丁炒饭", blessing: "菌香鸡肉，幸福长久。" },
+{ number: 117, name: "鱼香肉丝炒饭", blessing: "鱼香浓郁，顺心顺意。" },
+{ number: 118, name: "回锅肉炒饭", blessing: "肉香扑鼻，万事大吉。" },
+{ number: 119, name: "酱油炒饭", blessing: "酱香浓郁，平安顺利。" },
+{ number: 120, name: "腊肉炒饭", blessing: "腊香满碗，喜乐常伴。" },
+{ number: 121, name: "炒面", blessing: "炒面飘香，好运登场。" },
+{ number: 122, name: "鸡蛋炒面", blessing: "蛋香面香，平安健康。" },
+{ number: 123, name: "肉丝炒面", blessing: "肉丝鲜香，日子晴朗。" },
+{ number: 124, name: "牛肉炒面", blessing: "牛肉劲道，好运来到。" },
+{ number: 125, name: "海鲜炒面", blessing: "海鲜鲜美，平安顺遂。" },
+{ number: 126, name: "炒河粉", blessing: "河粉滑嫩，快乐满分。" },
+{ number: 127, name: "炒米粉", blessing: "米粉劲道，幸福围绕。" },
+{ number: 128, name: "炒乌冬", blessing: "乌冬Q弹，好运常伴。" },
+{ number: 129, name: "炒粿条", blessing: "粿条香滑，顺心顺意。" },
+{ number: 130, name: "孜然炒面", blessing: "孜然飘香，万事顺畅。" },
+{ number: 131, name: "一荤一素套餐", blessing: "荤素搭配，健康加倍。" },
+{ number: 132, name: "两荤一素套餐", blessing: "营养均衡，万事顺心。" },
+{ number: 133, name: "三荤两素套餐", blessing: "丰盛美味，好运相随。" },
+{ number: 134, name: "红烧鸡块套餐", blessing: "鸡块鲜香，平安健康。" },
+{ number: 135, name: "香酥鸡排套餐", blessing: "鸡排酥脆，快乐翻倍。" },
+{ number: 136, name: "卤味双拼套餐", blessing: "双拼美味，幸福加倍。" },
+{ number: 137, name: "烧鸭饭套餐", blessing: "烧鸭飘香，福气满堂。" },
+{ number: 138, name: "白切鸡套餐", blessing: "清淡鲜香，平安吉祥。" },
+{ number: 139, name: "豉油鸡套餐", blessing: "豉香浓郁，顺心顺意。" },
+{ number: 140, name: "盐焗鸡套餐", blessing: "盐焗鲜香，万事顺畅。" },
+{ number: 141, name: "叉烧饭套餐", blessing: "叉烧香甜，好运连连。" },
+{ number: 142, name: "烧鹅饭套餐", blessing: "烧鹅酥脆，福气翻倍。" },
+{ number: 143, name: "隆江猪脚饭套餐", blessing: "猪脚软糯，平安喜乐。" },
+{ number: 144, name: "广式烧腊三拼", blessing: "三拼美味，幸福常陪。" },
+{ number: 145, name: "香干炒肉套餐", blessing: "香干肉香，快乐满堂。" },
+{ number: 146, name: "鱼香肉丝套餐", blessing: "鱼香入味，好运加倍。" },
+{ number: 147, name: "宫保鸡丁套餐", blessing: "鸡丁鲜香，万事晴朗。" },
+{ number: 148, name: "土豆牛肉套餐", blessing: "牛肉土豆，平安长久。" },
+{ number: 149, name: "咖喱鸡套餐", blessing: "咖喱香浓，好运长虹。" },
+{ number: 150, name: "黑椒牛柳套餐", blessing: "牛柳黑椒，顺心顺意。" },
+{ number: 151, name: "水煮肉片套餐", blessing: "麻辣鲜香，平安健康。" },
+{ number: 152, name: "麻婆豆腐套餐", blessing: "豆腐麻辣，快乐无价。" },
+{ number: 153, name: "番茄炒蛋套餐", blessing: "番茄鸡蛋，简单温暖。" },
+{ number: 154, name: "手撕包菜套餐", blessing: "清淡解腻，万事顺利。" },
+{ number: 155, name: "红烧茄子套餐", blessing: "茄子软糯，好运多多。" },
+{ number: 156, name: "农家小炒肉套餐", blessing: "小炒肉香，福气满堂。" },
+{ number: 157, name: "青椒肉丝套餐", blessing: "青椒肉丝，平安无事。" },
+{ number: 158, name: "香菇滑鸡套餐", blessing: "滑鸡菌香，幸福久长。" },
+{ number: 159, name: "回锅肉套餐", blessing: "回锅肉香，万事顺畅。" },
+{ number: 160, name: "蒜苔炒肉套餐", blessing: "蒜苔肉香，快乐安康。" },
+{ number: 161, name: "皮蛋瘦肉粥", blessing: "一碗热粥，暖身无忧。" },
+{ number: 162, name: "香菇鸡肉粥", blessing: "粥香鸡香，平安健康。" },
+{ number: 163, name: "牛肉粥", blessing: "牛肉粥鲜，好运连连。" },
+{ number: 164, name: "排骨粥", blessing: "排骨粥香，福气满堂。" },
+{ number: 165, name: "海鲜粥", blessing: "海鲜粥鲜，平安如愿。" },
+{ number: 166, name: "青菜粥", blessing: "清淡养胃，快乐加倍。" },
+{ number: 167, name: "小米粥", blessing: "小米养胃，平安相随。" },
+{ number: 168, name: "南瓜粥", blessing: "南瓜香甜，暖心每天。" },
+{ number: 169, name: "八宝粥", blessing: "八宝营养，万事吉祥。" },
+{ number: 170, name: "黑米粥", blessing: "黑米滋补，平安幸福。" },
+{ number: 171, name: "豆浆+油条", blessing: "豆浆油条，快乐逍遥。" },
+{ number: 172, name: "豆浆+包子", blessing: "豆浆包子，平安无事。" },
+{ number: 173, name: "鲜肉包", blessing: "肉包鲜香，好运登场。" },
+{ number: 174, name: "菜包", blessing: "菜包清淡，健康相伴。" },
+{ number: 175, name: "烧麦", blessing: "烧麦鲜香，平安吉祥。" },
+{ number: 176, name: "蒸饺", blessing: "蒸饺美味，幸福常陪。" },
+{ number: 177, name: "馄饨", blessing: "馄饨暖心，万事顺心。" },
+{ number: 178, name: "小馄饨", blessing: "小巧鲜香，快乐满堂。" },
+{ number: 179, name: "云吞面", blessing: "云吞面香，平安健康。" },
+{ number: 180, name: "清汤云吞", blessing: "清汤暖心，好运随身。" },
+{ number: 181, name: "鸡蛋饼", blessing: "蛋饼香软，平安相伴。" },
+{ number: 182, name: "手抓饼", blessing: "手抓饼香，快乐无疆。" },
+{ number: 183, name: "杂粮煎饼", blessing: "煎饼营养，万事吉祥。" },
+{ number: 184, name: "饭团", blessing: "饭团饱腹，平安幸福。" },
+{ number: 185, name: "蒸玉米/红薯", blessing: "粗粮健康，好运长长。" },
+{ number: 186, name: "经典麻辣烫", blessing: "麻辣滚烫，好运登场。" },
+{ number: 187, name: "骨汤麻辣烫", blessing: "骨汤暖心，平安随身。" },
+{ number: 188, name: "番茄麻辣烫", blessing: "番茄酸甜，快乐天天。" },
+{ number: 189, name: "麻辣拌", blessing: "麻辣鲜香，万事顺畅。" },
+{ number: 190, name: "干拌麻辣烫", blessing: "干拌入味，好运加倍。" },
+{ number: 191, name: "川味冒菜", blessing: "冒菜香辣，心情豁达。" },
+{ number: 192, name: "冒肥牛", blessing: "肥牛冒香，福气满堂。" },
+{ number: 193, name: "冒鸭血", blessing: "鸭血鲜嫩，平安如愿。" },
+{ number: 194, name: "冒毛肚", blessing: "毛肚脆爽，好运常享。" },
+{ number: 195, name: "冒酥肉", blessing: "酥肉冒香，快乐安康。" },
+{ number: 196, name: "麻辣香锅（微辣）", blessing: "微辣开胃，心情明媚。" },
+{ number: 197, name: "麻辣香锅（中辣）", blessing: "中辣过瘾，事事顺心。" },
+{ number: 198, name: "麻辣香锅（特辣）", blessing: "特辣够味，快乐加倍。" },
+{ number: 199, name: "香锅肥牛", blessing: "肥牛香锅，顺心顺意。" },
+{ number: 200, name: "香锅鸡块", blessing: "鸡块香锅，平安健康。" },
+{ number: 201, name: "香锅虾", blessing: "香锅大虾，好运到家。" },
+{ number: 202, name: "香锅毛肚", blessing: "毛肚脆香，万事晴朗。" },
+{ number: 203, name: "香锅酥肉", blessing: "酥肉香锅，幸福多多。" },
+{ number: 204, name: "香锅豆腐", blessing: "豆腐香锅，平安稳妥。" },
+{ number: 205, name: "香锅素菜拼", blessing: "素菜清香，健康久长。" },
+{ number: 206, name: "单人小火锅（清汤）", blessing: "清汤小锅，暖心暖窝。" },
+{ number: 207, name: "单人小火锅（麻辣）", blessing: "麻辣小锅，红红火火。" },
+{ number: 208, name: "单人番茄火锅", blessing: "番茄火锅，酸甜快乐。" },
+{ number: 209, name: "单人菌汤火锅", blessing: "菌汤鲜香，平安吉祥。" },
+{ number: 210, name: "肥牛小火锅", blessing: "肥牛火锅，好运多多。" },
+{ number: 211, name: "肥羊小火锅", blessing: "肥羊火锅，暖身安康。" },
+{ number: 212, name: "鸡块小火锅", blessing: "鸡块火锅，快乐常乐。" },
+{ number: 213, name: "排骨小火锅", blessing: "排骨火锅，福气满窝。" },
+{ number: 214, name: "鱼片小火锅", blessing: "鱼片火锅，鲜爽快乐。" },
+{ number: 215, name: "虾滑小火锅", blessing: "虾滑Q弹，好运常伴。" },
+{ number: 216, name: "毛肚小火锅", blessing: "毛肚火锅，脆爽红火。" },
+{ the: number: 217, name: "酥肉小火锅", blessing: "酥肉火锅，幸福稳妥。" },
+{ number: 218, name: "丸子小火锅", blessing: "丸子火锅，团圆快乐。" },
+{ number: 219, name: "素菜小火锅", blessing: "素菜火锅，健康常乐。" },
+{ number: 220, name: "鸳鸯小火锅", blessing: "鸳鸯双味，好运加倍。" },
+{ number: 221, name: "烤羊肉串", blessing: "羊肉烤香，好运登场。" },
+{ number: 222, name: "烤牛肉串", blessing: "牛肉烤香，平安健康。" },
+{ number: 223, name: "烤鸡翅", blessing: "鸡翅烤香，快乐满堂。" },
+{ number: 224, name: "烤鸡腿", blessing: "鸡腿烤香，福气满堂。" },
+{ number: 225, name: "烤五花肉", blessing: "五花肉香，万事顺畅。" },
+{ number: 226, name: "烤香肠", blessing: "香肠烤香，平安吉祥。" },
+{ number: 227, name: "烤面筋", blessing: "面筋烤香，快乐无疆。" },
+{ number: 228, name: "烤茄子", blessing: "茄子烤香，好运长长。" },
+{ number: 229, name: "烤韭菜", blessing: "韭菜烤香，健康久长。" },
+{ number: 230, name: "烤金针菇", blessing: "金针菇香，顺心顺意。" },
+{ number: 231, name: "烤馒头片", blessing: "馒头片香，平安安康。" },
+{ number: 232, name: "炸鸡排", blessing: "鸡排酥脆，快乐翻倍。" },
+{ number: 233, name: "炸鸡腿", blessing: "鸡腿酥脆，好运相随。" },
+{ number: 234, name: "炸鸡翅", blessing: "鸡翅酥脆，幸福加倍。" },
+{ number: 235, name: "炸薯条", blessing: "薯条香脆，快乐万岁。" },
+{ number: 236, name: "炸串", blessing: "炸串飘香，万事吉祥。" },
+{ number: 237, name: "关东煮", blessing: "关东煮暖，平安相伴。" },
+{ number: 238, name: "卤蛋", blessing: "卤蛋鲜香，平安健康。" },
+{ number: 239, name: "卤豆干", blessing: "豆干卤香，快乐满堂。" },
+{ number: 240, name: "卤鸭脖", blessing: "鸭脖卤香，好运长长。" },
+{ number: 241, name: "卤鸭翅", blessing: "鸭翅卤香，万事晴朗。" },
+{ number: 242, name: "卤鸡爪", blessing: "鸡爪卤香，幸福久长。" },
+{ number: 243, name: "卤猪蹄", blessing: "猪蹄软糯，福气多多。" },
+{ number: 244, name: "卤藕片", blessing: "藕片卤香，平安吉祥。" },
+{ number: 245, name: "卤海带", blessing: "海带卤香，快乐安康。" },
+{ number: 246, name: "鸡胸肉沙拉", blessing: "沙拉低脂，健康加持。" },
+{ number: 247, name: "牛肉沙拉", blessing: "牛肉沙拉，活力到家。" },
+{ number: 248, name: "鲜虾沙拉", blessing: "鲜虾沙拉，鲜爽快乐。" },
+{ number: 249, name: "蔬菜沙拉", blessing: "蔬菜沙拉，清爽无压。" },
+{ number: 250, name: "鸡胸肉杂粮饭", blessing: "杂粮鸡胸，健康轻松。" },
+{ number: 251, name: "牛肉杂粮饭", blessing: "牛肉杂粮，活力满满。" },
+{ number: 252, name: "鲜虾杂粮饭", blessing: "鲜虾杂粮，鲜爽安康。" },
+{ number: 253, name: "鸡胸肉三明治", blessing: "三明治香，健康久长。" },
+{ number: 254, name: "金枪鱼三明治", blessing: "金枪鱼香，万事顺畅。" },
+{ number: 255, name: "鸡蛋三明治", blessing: "鸡蛋三明，平安安心。" },
+{ number: 256, name: "蔬菜三明治", blessing: "蔬菜三明，清爽开心。" },
+{ number: 257, name: "鸡胸肉卷饼", blessing: "卷饼低脂，快乐不止。" },
+{ number: 258, name: "牛肉卷饼", blessing: "牛肉卷饼，活力随行。" },
+{ number: 259, name: "蔬菜卷饼", blessing: "蔬菜卷饼，清爽宁静。" },
+{ number: 260, name: "水煮菜套餐", blessing: "水煮清淡，健康相伴。" },
+{ number: 261, name: "清蒸鱼套餐", blessing: "清蒸鱼鲜，平安如愿。" },
+{ number: 262, name: "白煮蛋套餐", blessing: "白蛋营养，万事吉祥。" },
+{ number: 263, name: "紫薯鸡胸肉餐", blessing: "紫薯鸡胸，健康轻松。" },
+{ number: 264, name: "玉米虾仁餐", blessing: "玉米虾仁，鲜爽相随。" },
+{ number: 265, name: "低卡意面餐", blessing: "低卡意面，快乐不减。" },
+{ number: 266, name: "香辣鸡腿堡", blessing: "汉堡香辣，快乐豁达。" },
+{ number: 267, name: "奥尔良鸡腿堡", blessing: "奥尔良香，平安健康。" },
+{ number: 268, name: "牛肉堡", blessing: "牛肉汉堡，好运来到。" },
+{ number: 269, name: "鳕鱼堡", blessing: "鳕鱼汉堡，鲜爽快乐。" },
+{ number: 270, name: "鸡肉卷", blessing: "鸡肉卷香，万事顺畅。" },
+{ number: 271, name: "牛肉卷", blessing: "牛肉卷香，福气满堂。" },
+{ number: 272, name: "薯条", blessing: "薯条香脆，快乐万岁。" },
+{ number: 273, name: "鸡块", blessing: "鸡块酥脆，好运翻倍。" },
+{ number: 274, name: "鸡米花", blessing: "鸡米花香，平安吉祥。" },
+{ number: 275, name: "蛋挞", blessing: "蛋挞香甜，暖心每天。" },
+{ number: 276, name: "芝士披萨", blessing: "披萨芝士，快乐不止。" },
+{ number: 277, name: "培根披萨", blessing: "培根披萨，香飘万家。" },
+{ number: 278, name: "香肠披萨", blessing: "香肠披萨，美味到家。" },
+{ number: 279, name: "水果披萨", blessing: "水果披萨，甜满天下。" },
+{ number: 280, name: "牛肉披萨", blessing: "牛肉披萨，香爽快乐。" },
+{ number: 281, name: "鸡肉披萨", blessing: "鸡肉披萨，健康常佳。" },
+{ number: 282, name: "海鲜披萨", blessing: "海鲜披萨，鲜爽到家。" },
+{ number: 283, name: "意式披萨", blessing: "意式披萨，风味绝佳。" },
+{ number: 284, name: "美式热狗", blessing: "热狗鲜香，快乐无疆。" },
+{ number: 285, name: "芝士焗饭", blessing: "焗饭芝士，幸福不止。" },
+{ number: 286, name: "酸菜鱼米饭", blessing: "酸菜鱼香，平安健康。" },
+{ number: 287, name: "番茄鱼米饭", blessing: "番茄鱼鲜，好运连连。" },
+{ number: 288, name: "青花椒鱼米饭", blessing: "青花椒香，万事晴朗。" },
+{ number: 289, name: "水煮鱼米饭", blessing: "水煮鱼香，暖身安康。" },
+{ number: 290, name: "水煮肉片", blessing: "水煮肉片，麻辣过瘾。" },
+{ number: 291, name: "水煮肥牛", blessing: "水煮肥牛，香滑无忧。" },
+{ number: 292, name: "毛血旺", blessing: "毛血旺香，红红火火。" },
+{ number: 293, name: "辣子鸡", blessing: "辣子鸡香，辣得舒畅。" },
+{ number: 294, name: "口水鸡", blessing: "口水鸡香，清爽安康。" },
+{ number: 295, name: "藤椒鸡", blessing: "藤椒鸡香，鲜麻舒畅。" },
+{ number: 296, name: "川味肥肠饭", blessing: "肥肠饭香，风味无双。" },
+{ number: 297, name: "川味腊肉饭", blessing: "腊肉饭香，腊味绵长。" },
+{ number: 298, name: "干锅土豆片", blessing: "干锅土豆，香酥可口。" },
+{ number: 299, name: "干锅花菜", blessing: "干锅花菜，清香自在。" },
+{ number: 300, name: "干锅鸡", blessing: "干锅鸡香，辣得舒畅。" },
+{ number: 301, name: "牛肉汤粉", blessing: "牛肉汤粉，鲜香满分。" },
+{ number: 302, name: "羊肉汤粉", blessing: "羊肉汤粉，暖身安稳。" },
+{ number: 303, name: "鸡汤粉", blessing: "鸡汤粉香，平安健康。" },
+{ number: 304, name: "排骨汤粉", blessing: "排骨汤粉，福气满分。" },
+{ number: 305, name: "鱼片汤粉", blessing: "鱼片汤粉，鲜爽安稳。" },
+{ number: 306, name: "牛肉汤面", blessing: "牛肉汤面，暖心每天。" },
+{ number: 307, name: "羊肉汤面", blessing: "羊肉汤面，暖身无厌。" },
+{ number: 308, name: "鸡汤面", blessing: "鸡汤面香，平安吉祥。" },
+{ number: 309, name: "排骨汤面", blessing: "排骨汤面，福气常伴。" },
+{ number: 310, name: "鱼片汤面", blessing: "鱼片汤面，鲜爽如愿。" },
+{ number: 311, name: "菌菇汤饭", blessing: "菌菇汤饭，清香温暖。" },
+{ number: 312, name: "鸡汤饭", blessing: "鸡汤饭香，平安健康。" },
+{ number: 313, name: "排骨汤饭", blessing: "排骨汤饭，福气满满。" },
+{ number: 314, name: "牛肉汤饭", blessing: "牛肉汤饭，鲜香温暖。" },
+{ number: 315, name: "番茄汤饭", blessing: "番茄汤饭，酸甜温暖。" },
+{ number: 316, name: "紫菜蛋花汤饭", blessing: "紫菜蛋花，清淡如家。" },
+{ number: 317, name: "丝瓜蛋汤饭", blessing: "丝瓜蛋汤，清爽安康。" },
+{ number: 318, name: "冬瓜海带汤饭", blessing: "冬瓜海带，清淡自在。" },
+{ number: 319, name: "萝卜汤饭", blessing: "萝卜汤饭，温润温暖。" },
+{ number: 320, name: "白菜汤饭", blessing: "白菜汤饭，清淡平安。" },
+{ number: 321, name: "沙县小吃扁食", blessing: "扁食鲜香，平安健康。" },
+{ number: 322, name: "沙县小吃拌面", blessing: "拌面飘香，万事顺畅。" },
+{ number: 323, name: "沙县小吃蒸饺", blessing: "蒸饺美味，幸福常陪。" },
+{ number: 324, name: "兰州拉面", blessing: "拉面劲道，好运来到。" },
+{ number: 325, name: "新疆大盘鸡面", blessing: "大盘鸡香，福气满堂。" },
+{ number: 326, name: "陕西肉夹馍", blessing: "肉夹馍香，快乐无疆。" },
+{ number: 327, name: "陕西凉皮", blessing: "凉皮清爽，心情舒畅。" },
+{ number: 328, name: "武汉热干面", blessing: "热干面香，平安吉祥。" },
+{ number: 329, name: "长沙臭豆腐", blessing: "臭香经典，快乐无限。" },
+{ number: 330, name: "重庆小面", blessing: "小面麻辣，快乐无价。" },
+{ number: 331, name: "成都抄手", blessing: "抄手鲜香，万事晴朗。" },
+{ number: 332, name: "广东云吞", blessing: "云吞暖心，平安随身。" },
+{ number: 333, name: "福建福鼎肉片", blessing: "肉片鲜香，健康久长。" },
+{ number: 334, name: "浙江小笼包", blessing: "小笼包香，福气满堂。" },
+{ number: 335, name: "上海生煎包", blessing: "生煎包香，快乐安康。" },
+{ number: 336, name: "天津煎饼果子", blessing: "煎饼果子，平安无事。" },
+{ number: 337, name: "东北锅包肉", blessing: "锅包肉香，酸甜舒畅。" },
+{ number: 338, name: "东北地三鲜", blessing: "地三鲜香，清淡安康。" },
+{ number: 339, name: "河南胡辣汤", blessing: "胡辣汤暖，好运相伴。" },
+{ number: 340, name: "安徽板面", blessing: "板面劲道，幸福围绕。" },
+{ number: 341, name: "江西瓦罐汤", blessing: "瓦罐汤香，暖心暖肠。" },
+{ number: 342, name: "湖北豆皮", blessing: "豆皮香软，平安相伴。" },
+{ number: 343, name: "湖南米粉", blessing: "米粉鲜香，万事顺畅。" },
+{ number: 344, name: "广西酸笋粉", blessing: "酸笋粉香，风味悠长。" },
+{ number: 345, name: "海南鸡饭", blessing: "鸡饭清香，平安吉祥。" },
+{ number: 346, name: "台湾卤肉饭", blessing: "卤肉饭香，福气满堂。" },
+{ number: 347, name: "台湾鸡排饭", blessing: "鸡排饭香，快乐安康。" },
+{ number: 348, name: "韩式拌饭", blessing: "拌饭鲜香，韩式风光。" },
+{ number: 349, name: "韩式炸鸡", blessing: "炸鸡酥脆，快乐翻倍。" },
+{ number: 350, name: "日式拉面", blessing: "拉面日式，鲜爽舒适。" },
+{ number: 351, name: "日式咖喱饭", blessing: "咖喱日式，香顺如意。" },
+{ number: 352, name: "日式蛋包饭", blessing: "蛋包饭香，平安健康。" },
+{ number: 353, name: "泰式咖喱饭", blessing: "泰式咖喱，香飘万里。" },
+{ number: 354, name: "泰式冬阴功粉", blessing: "冬阴功粉，酸辣过瘾。" },
+{ number: 355, name: "越南河粉", blessing: "河粉越南，鲜爽平安。" },
+{ number: 356, name: "豆腐脑（甜/咸）", blessing: "豆腐脑香，暖心暖肠。" },
+{ number: 357, name: "锅贴", blessing: "锅贴鲜香，平安吉祥。" },
+{ number: 358, name: "生煎", blessing: "生煎飘香，万事顺畅。" },
+{ number: 359, name: "麻团", blessing: "麻团香甜，快乐天天。" },
+{ number: 360, name: "糖糕", blessing: "糖糕香甜，暖心每天。" },
+{ number: 361, name: "菜盒子", blessing: "菜盒香软，平安相伴。" },
+{ number: 362, name: "肉盒子", blessing: "肉盒鲜香，福气满堂。" },
+{ number: 363, name: "葱油饼", blessing: "葱油饼香，快乐安康。" },
+{ number: 364, name: "酱香饼", blessing: "酱香饼香，万事顺畅。" },
+{ number: 365, name: "鸡蛋灌饼", blessing: "蛋灌饼香，平安吉祥。" }
+];
 
-        // 初始化页面
-        if (!hasUserKey) {
-            noResult.textContent = "❌ 此链接无法使用，请通过正规渠道获取专属链接！";
-            drawBtn.disabled = true; // 禁用抽签按钮
-        } else {
-            noResult.textContent = "✅ 专属链接有效，可无限次抽签！";
-        }
+// 初始化逻辑
+if (!hasValidUser) {
+  noResult.textContent = "❌ 此链接无法使用，请通过正规渠道获取专属链接！";
+  drawBtn.disabled = true;
+} else if (isBound) {
+  noResult.textContent = "✅ 专属链接有效，可无限次抽签！";
+} else {
+  noResult.textContent = "✅ 首次绑定成功，现在可以抽签啦！";
+  localStorage.setItem(STORAGE_KEY, "true");
+}
 
-        // 抽签核心函数（无限次可用）
-        function drawDish() {
-            // 无专属参数直接返回
-            if (!hasUserKey) return;
-            
-            // 添加强调签动画
-            resultBox.classList.add('drawing');
-            drawBtn.disabled = true;
-            noResult.textContent = "正在抽签中...";
+// 抽签
+function drawDish() {
+  if (!hasValidUser) return;
+  if (isBound || localStorage.getItem(STORAGE_KEY) === "true") {
+    resultBox.classList.add('drawing');
+    drawBtn.disabled = true;
+    noResult.textContent = "正在抽签中...";
 
-            // 模拟抽签延迟（更有仪式感）
-            setTimeout(() => {
-                // 随机选一道菜
-                let randomIndex = Math.floor(Math.random() * dishData.length);
-                let randomDish = dishData[randomIndex];
-                
-                // 停止动画，展示结果
-                resultBox.classList.remove('drawing');
-                drawBtn.disabled = false;
-                noResult.style.display = "none";
-                resultContent.classList.add('show');
-                
-                // 填充结果
-                dishNumber.textContent = `第 ${randomDish.number} 道`;
-                dishName.textContent = randomDish.name;
-                dishBlessing.textContent = randomDish.blessing;
-            }, 1200); // 1.2秒延迟，体验更好
-        }
+    setTimeout(() => {
+      let randomDish = dishData[Math.floor(Math.random() * dishData.length)];
+      resultBox.classList.remove('drawing');
+      drawBtn.disabled = false;
+      noResult.style.display = "none";
+      resultContent.classList.add('show');
+      dishNumber.textContent = `第 ${randomDish.number} 道`;
+      dishName.textContent = randomDish.name;
+      dishBlessing.textContent = randomDish.blessing;
+    }, 1200);
+  } else {
+    noResult.textContent = "❌ 此链接已被他人绑定，无法使用！";
+    drawBtn.disabled = true;
+  }
+}
 
-        // 重置函数（清空结果，可重新抽签）
-        function resetDraw() {
-            resultBox.classList.remove('active');
-            resultContent.classList.remove('show');
-            noResult.style.display = "block";
-            
-            if (hasUserKey) {
-                noResult.textContent = "✅ 可再次抽签！";
-            } else {
-                noResult.textContent = "❌ 此链接无法使用，请通过正规渠道获取专属链接！";
-            }
-            
-            // 清空结果内容
-            dishNumber.textContent = "";
-            dishName.textContent = "";
-            dishBlessing.textContent = "";
-        }
+// 重置
+function resetDraw() {
+  resultBox.classList.remove('active');
+  resultContent.classList.remove('show');
+  noResult.style.display = "block";
+  if (hasValidUser) {
+    noResult.textContent = "✅ 可再次抽签！";
+  } else {
+    noResult.textContent = "❌ 此链接无法使用，请通过正规渠道获取专属链接！";
+  }
+  dishNumber.textContent = "";
+  dishName.textContent = "";
+  dishBlessing.textContent = "";
+}
 
-        // 绑定按钮点击事件
-        drawBtn.addEventListener('click', drawDish);
-        resetBtn.addEventListener('click', resetDraw);
-    </script>
-</body>
-</html>
+drawBtn.addEventListener('click', drawDish);
+resetBtn.addEventListener('click', resetDraw);
