@@ -1,4 +1,128 @@
-// ===================== 防转发·专属绑定版 =====================
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>专属菜品抽签</title>
+    <style>
+        /* 全局样式 - 适配手机端，小红书客户常用手机访问 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Microsoft YaHei", sans-serif;
+        }
+        body {
+            background-color: #f8f9fa;
+            padding: 20px;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin: 20px 0;
+            font-size: 24px;
+        }
+        /* 抽签结果盒子 */
+        #resultBox {
+            background-color: white;
+            border-radius: 12px;
+            padding: 30px 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        #noResult {
+            color: #666;
+            font-size: 16px;
+            line-height: 1.5;
+        }
+        #resultContent {
+            display: none;
+            margin-top: 10px;
+        }
+        #resultContent.show {
+            display: block;
+        }
+        #dishNumber {
+            color: #ff6700;
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        #dishName {
+            font-size: 22px;
+            color: #333;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+        #dishBlessing {
+            color: #666;
+            font-size: 16px;
+            line-height: 1.6;
+        }
+        /* 抽签动画 */
+        #resultBox.drawing #noResult {
+            animation: loading 1s infinite alternate;
+        }
+        @keyframes loading {
+            from { opacity: 0.5; }
+            to { opacity: 1; }
+        }
+        /* 按钮样式 */
+        .btn-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        button {
+            flex: 1;
+            padding: 15px 0;
+            border: none;
+            border-radius: 8px;
+            font-size: 18px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        #drawBtn {
+            background-color: #ff6700;
+            color: white;
+        }
+        #drawBtn:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        #resetBtn {
+            background-color: #e0e0e0;
+            color: #333;
+        }
+        #resetBtn:hover {
+            background-color: #d0d0d0;
+        }
+    </style>
+</head>
+<body>
+    <h1>专属菜品抽签</h1>
+    
+    <!-- 抽签结果展示区 -->
+    <div id="resultBox">
+        <div id="noResult">✅ 专属链接有效，可无限次抽签！</div>
+        <div id="resultContent">
+            <div id="dishNumber"></div>
+            <div id="dishName"></div>
+            <div id="dishBlessing"></div>
+        </div>
+    </div>
+    
+    <!-- 按钮区 -->
+    <div class="btn-group">
+        <button id="drawBtn">开始抽签</button>
+        <button id="resetBtn">重新抽签</button>
+    </div>
+
+    <script>
+     // ===================== 防转发·专属绑定版 =====================
 function getUrlParam(key) {
   let p = new URLSearchParams(window.location.search);
   return p.get(key);
@@ -237,7 +361,7 @@ const dishData = [
 { number: 214, name: "鱼片小火锅", blessing: "鱼片火锅，鲜爽快乐。" },
 { number: 215, name: "虾滑小火锅", blessing: "虾滑Q弹，好运常伴。" },
 { number: 216, name: "毛肚小火锅", blessing: "毛肚火锅，脆爽红火。" },
-{ the: number: 217, name: "酥肉小火锅", blessing: "酥肉火锅，幸福稳妥。" },
+{ number: 217, name: "酥肉小火锅", blessing: "酥肉火锅，幸福稳妥。" },
 { number: 218, name: "丸子小火锅", blessing: "丸子火锅，团圆快乐。" },
 { number: 219, name: "素菜小火锅", blessing: "素菜火锅，健康常乐。" },
 { number: 220, name: "鸳鸯小火锅", blessing: "鸳鸯双味，好运加倍。" },
@@ -440,3 +564,6 @@ function resetDraw() {
 
 drawBtn.addEventListener('click', drawDish);
 resetBtn.addEventListener('click', resetDraw);
+    </script>
+</body>
+</html>
